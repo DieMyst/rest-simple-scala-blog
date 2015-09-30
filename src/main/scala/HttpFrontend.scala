@@ -1,10 +1,11 @@
 import java.util.UUID
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.directives.UserCredentials
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import model.{Comment, Post}
@@ -12,7 +13,7 @@ import org.joda.time.DateTime
 import org.joda.time.format.{DateTimeFormatter, ISODateTimeFormat}
 import spray.json._
 
-import scala.concurrent.{Future, Await}
+import scala.language.postfixOps
 
 /**
  * Created by diemyst on 23.09.15.
@@ -43,16 +44,30 @@ trait Protocols extends DefaultJsonProtocol with SprayJsonSupport {
   implicit def uuidFormat = jsonFormat1(UUIDJson.apply)
 }
 
+/*
+  Здесь можно сделать дополнительный слой в виду актора,
+  чтоб отделить rest-service и логику
+ */
 trait HttpFrontend extends Protocols {
 
   implicit val system: ActorSystem
   implicit val timeout: Timeout
   implicit val materializer: ActorMaterializer
-  import scala.concurrent.ExecutionContext.Implicits.global
 
   val db: BlogiesDatabase = BlogiesDatabase
   val posts = db.posts
   val comments = db.comments
+
+  var login: String
+  var password: String
+
+  val host = "127.0.0.1"
+  val port = 8080
+
+  def auth: Authenticator[Boolean] = {
+    case p @ UserCredentials.Provided(name) if (name == login) => Some(p.verifySecret(name + password))
+    case _                                  => None
+  }
 
   val route: Route = {
     get {
@@ -60,10 +75,15 @@ trait HttpFrontend extends Protocols {
         complete(posts.getFirstPage(10))
       } ~
       path("post" / JavaUUID ~ Slash.?) { uuid =>
-        complete {
-          posts.getById(uuid)
+        authenticateBasic("blogie", auth) { authBool =>
+          complete {
+            if (authBool) {
+              posts.getById(uuid)
+            } else {
+              StatusCodes.Unauthorized
+            }
+          }
         }
-
       }
     } ~
     put {

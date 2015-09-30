@@ -36,4 +36,8 @@ libraryDependencies ++= Seq(
   "org.scalatest" % "scalatest_2.11" % "2.2.5" % "test",
   "com.typesafe.akka" % "akka-http-testkit-experimental_2.11" % httpAkkaVersion % "test"
 )
+
+mainClass in assembly := Some("Appl.scala")
+assemblyJarName in assembly := "severe.jar"
+test in assembly := {}
     

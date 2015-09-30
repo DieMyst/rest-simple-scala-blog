@@ -1,8 +1,6 @@
 import java.util.UUID
 
-import akka.actor.Actor.Receive
-import akka.actor.{Props, Actor, ActorRef}
-import akka.http.scaladsl.model.ContentTypes._
+import akka.actor.Actor
 import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -11,7 +9,7 @@ import akka.util.Timeout
 import model.Comment
 import org.joda.time.DateTime
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{Matchers, BeforeAndAfterAll, WordSpec}
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -21,6 +19,9 @@ import scala.concurrent.duration._
  */
 class HttpFrontendSpec extends WordSpec with Matchers with BeforeAndAfterAll with ScalaFutures
                                 with ScalatestRouteTest with HttpFrontend with Defaults.connector.Connector {
+
+  override var login: String = "test"
+  override var password: String = "test"
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -60,13 +61,11 @@ class HttpFrontendSpec extends WordSpec with Matchers with BeforeAndAfterAll wit
   }
 
   "Save post in cassandra" in {
-    val uuid: UUID = UUID.randomUUID()
-    Await.result(db.posts.store(model.Post(Some(uuid), "title", "text", None, None)), 5.seconds)
+    val uuid: UUID = db.posts.store(model.Post(None, "title", "text", None, None))
     val postFut = db.posts.getById(uuid)
     val post = Await.result(postFut, 5.seconds)
     post.get.title shouldBe "title"
   }
-  override val managerActor: ActorRef = system.actorOf(Props(classOf[TestActor]))
 }
 
 class TestActor extends Actor {
